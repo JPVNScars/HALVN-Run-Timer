@@ -1,32 +1,25 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HALVN Mobile Race Timer</title>
+<title>HALVN Run Timer</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <style>
-body{
-font-family: Arial, sans-serif;
-background:#f4f6f9;
-margin:0;
-padding:15px;
-text-align:center;
-}
+body{font-family:Arial;background:#f4f6f9;margin:0;padding:15px;text-align:center;}
 h1{color:#1565c0}
-#timer{font-size:56px;font-weight:bold;margin:20px 0;}
-.container{max-width:600px;margin:auto;}
+#timer{font-size:60px;font-weight:bold;margin:20px 0;}
+.container{max-width:700px;margin:auto;}
 .card{background:white;padding:15px;border-radius:10px;box-shadow:0 4px 10px rgba(0,0,0,0.08);margin-bottom:15px;}
-input{width:90%;padding:12px;font-size:18px;margin:6px 0;border-radius:8px;border:1px solid #ccc;}
+input,select{width:90%;padding:12px;font-size:18px;margin:6px 0;border-radius:8px;border:1px solid #ccc;}
 button{width:90%;padding:16px;font-size:20px;margin:6px 0;border:none;border-radius:10px;cursor:pointer;background:#1976d2;color:white;}
-button.red{background:#c62828}
-button.orange{background:#ef6c00}
 button.green{background:#2e7d32}
+button.orange{background:#ef6c00}
 table{width:100%;border-collapse:collapse;font-size:14px;}
 th{background:#1976d2;color:white;padding:6px;}
 td{padding:6px;border-bottom:1px solid #ddd;}
-.fastest{background:#c8f7c5;font-weight:bold;}
 </style>
 </head>
 
@@ -34,32 +27,39 @@ td{padding:6px;border-bottom:1px solid #ddd;}
 
 <div class="container">
 
-<h1>HALVN Race Timer</h1>
+<h1>HALVN Run Timer</h1>
 
 <div id="timer">00:00.000</div>
 
 <div class="card">
 <button onclick="startTimer()">START</button>
 <button class="orange" onclick="stopTimer()">STOP</button>
-<button class="red" onclick="resetRunner()">RESET RUNNER</button>
 </div>
 
 <div class="card">
 <h3>Add Runner</h3>
-<input id="bib" placeholder="Bib Number">
+<input id="bib" placeholder="Bib">
 <input id="name" placeholder="Name">
 <input id="team" placeholder="Team">
 <button onclick="addRunner()">Add Runner</button>
 </div>
 
 <div class="card">
-<h3>Lap</h3>
-<input id="lapBib" placeholder="Bib Number">
+<h3>Select Runner for Lap</h3>
+
+<select id="runnerSelect"></select>
+
+<select id="genderSelect">
+<option value="male">Male (2 laps)</option>
+<option value="female">Female (1 lap)</option>
+</select>
+
 <button onclick="recordLap()">LAP</button>
+
 </div>
 
 <div class="card">
-<h3>Current Runner</h3>
+<h3>Current Runners</h3>
 <table>
 <thead>
 <tr>
@@ -71,7 +71,7 @@ td{padding:6px;border-bottom:1px solid #ddd;}
 <th>Total</th>
 </tr>
 </thead>
-<tbody id="current"></tbody>
+<tbody id="currentTable"></tbody>
 </table>
 </div>
 
@@ -88,7 +88,7 @@ td{padding:6px;border-bottom:1px solid #ddd;}
 <th>Total</th>
 </tr>
 </thead>
-<tbody id="results"></tbody>
+<tbody id="resultsTable"></tbody>
 </table>
 </div>
 
@@ -100,8 +100,9 @@ td{padding:6px;border-bottom:1px solid #ddd;}
 
 <script>
 
-let currentRunner=null
+let runners=[]
 let results=[]
+
 let startTime=0
 let running=false
 let interval
@@ -131,67 +132,96 @@ clearInterval(interval)
 running=false
 }
 
+function resetTimer(){
+stopTimer()
+document.getElementById("timer").innerText="00:00.000"
+}
+
 function addRunner(){
+
 let bib=document.getElementById("bib").value
 let name=document.getElementById("name").value
 let team=document.getElementById("team").value
+
 if(!bib) return alert("Enter Bib")
-currentRunner={bib,name,team,laps:[],total:null}
+
+runners.push({
+bib,
+name,
+team,
+laps:[],
+total:null
+})
+
+updateSelect()
 render()
+
+}
+
+function updateSelect(){
+
+let select=document.getElementById("runnerSelect")
+select.innerHTML=""
+
+runners.forEach(r=>{
+
+let opt=document.createElement("option")
+opt.value=r.bib
+opt.text=r.bib+" - "+(r.name||"")
+
+select.appendChild(opt)
+
+})
+
 }
 
 function recordLap(){
-let bib=document.getElementById("lapBib").value
-if(!currentRunner || currentRunner.bib!=bib){
-alert("Runner not active")
+
+let bib=document.getElementById("runnerSelect").value
+let gender=document.getElementById("genderSelect").value
+
+let runner=runners.find(r=>r.bib==bib)
+
+if(!runner){
+alert("Runner not found")
 return
-}
-if(currentRunner.laps.length>=2){
-alert("Max 2 laps")
-return
-}
-let time=Date.now()-startTime
-currentRunner.laps.push(time)
-if(currentRunner.laps.length==2){
-currentRunner.total=currentRunner.laps.reduce((a,b)=>a+b,0)
-}
-render()
 }
 
-function resetRunner(){
-if(!currentRunner) return
-results.push(JSON.parse(JSON.stringify(currentRunner)))
-currentRunner=null
-document.getElementById("timer").innerText="00:00.000"
-stopTimer()
+let maxLap=gender==="male"?2:1
+
+if(runner.laps.length>=maxLap){
+alert("Max laps reached")
+return
+}
+
+let time=Date.now()-startTime
+
+runner.laps.push(time)
+
+if(runner.laps.length===maxLap){
+
+runner.total=runner.laps.reduce((a,b)=>a+b,0)
+
+results.push(JSON.parse(JSON.stringify(runner)))
+
+runner.laps=[]
+runner.total=null
+
+resetTimer()
+
+}
+
 render()
+
 }
 
 function render(){
-let cur=document.getElementById("current")
-cur.innerHTML=""
-if(currentRunner){
-let fastest=currentRunner.laps.length?Math.min(...currentRunner.laps):null
-let row=`<tr>
-<td>${currentRunner.bib}</td>
-<td>${currentRunner.name||""}</td>
-<td>${currentRunner.team||""}</td>`
-for(let i=0;i<2;i++){
-let lap=currentRunner.laps[i]
-if(lap){
-let cls=lap===fastest?"fastest":""
-row+=`<td class="${cls}">${format(lap)}</td>`
-}else{
-row+="<td>-</td>"
-}
-}
-row+=`<td>${format(currentRunner.total)}</td></tr>`
-cur.innerHTML=row
-}
 
-let res=document.getElementById("results")
-res.innerHTML=""
-results.forEach(r=>{
+let table=document.getElementById("currentTable")
+table.innerHTML=""
+
+runners.forEach(r=>{
+
 let row=`<tr>
 <td>${r.bib}</td>
 <td>${r.name||""}</td>
@@ -200,13 +230,37 @@ let row=`<tr>
 <td>${format(r.laps[1])}</td>
 <td>${format(r.total)}</td>
 </tr>`
-res.innerHTML+=row
+
+table.innerHTML+=row
+
 })
+
+let res=document.getElementById("resultsTable")
+res.innerHTML=""
+
+results.forEach(r=>{
+
+let row=`<tr>
+<td>${r.bib}</td>
+<td>${r.name||""}</td>
+<td>${r.team||""}</td>
+<td>${format(r.laps[0])}</td>
+<td>${format(r.laps[1])}</td>
+<td>${format(r.total)}</td>
+</tr>`
+
+res.innerHTML+=row
+
+})
+
 }
 
 function exportExcel(){
+
 let data=[]
+
 results.forEach(r=>{
+
 data.push({
 Bib:r.bib,
 Name:r.name,
@@ -215,11 +269,16 @@ Lap1:format(r.laps[0]),
 Lap2:format(r.laps[1]),
 Total:format(r.total)
 })
+
 })
+
 let ws=XLSX.utils.json_to_sheet(data)
 let wb=XLSX.utils.book_new()
+
 XLSX.utils.book_append_sheet(wb,ws,"Results")
-XLSX.writeFile(wb,"HALVN_Race_Result.xlsx")
+
+XLSX.writeFile(wb,"HALVN_Run_Result.xlsx")
+
 }
 
 </script>
